@@ -1,0 +1,299 @@
+###Train Data GSE 2034
+###Test Data GSE 2990
+##https://nntc.org/content/gene_array
+
+setwd("/Users/myrinearevalo/Desktop/MachineLearn/BREAST")
+
+load ("/Users/myrinearevalo/Desktop/MachineLearn/BREAST/TRAINwithoutclusterMARCH2020.RData")
+
+#### Creating the Random Forest Model###
+install.packages("randomForest")
+install.packages("ROCR")
+install.packages("Hmisc")
+install.packages("ggplot2")
+install.packages("checkmate")
+BiocManager::install("genefilter")
+
+library(randomForest)
+library(ROCR)
+library(genefilter)
+library(ggplot2)
+library(checkmate)
+library(Hmisc)
+
+setwd("/Users/myrinearevalo/Desktop/MachineLearn/BREAST")
+
+clindatafile="trainset_clindetails(3).txt"
+clin_data_import=read.table(clindatafile, header = TRUE, na.strings = "NA", sep="\t")
+clin_data_order=order(clin_data_import[,"GEO.asscession.number"])
+clindata=clin_data_import[clin_data_order,]
+
+trainpredictor_data=read.csv("BreastCancerGeneExData_edit2.csv") 
+rownames(trainpredictor_data)=trainpredictor_data[,1]
+trainpredictor_data=trainpredictor_data[,-1]
+dim(trainpredictor_data)
+trainpredictor_data=t(trainpredictor_data)
+dim(trainpredictor_data) #230 x 1751 --> original 2081 average gene
+View(trainpredictor_data)
+
+target=read.csv("trainYindex.csv", header=T)
+dim(target)
+target[1:5,1]
+target=as.factor(target[,1])
+length(target)
+
+###Creating the training and Testing datasets
+install.packages("ggplot2")
+install.packages("caret",dependencies = TRUE, repos = "http://cran.us.r-project.org")
+install.packages("lattice")
+library(ggplot2)
+library(caret)
+library("RColorBrewer")
+
+Train2=trainpredictor_data
+dim(Train2) #dim(Train2)=230 by 1751
+
+library(randomForest) 
+set.seed(1234) 
+
+trainX=t(Train2) #dim(trainX)=1751 by 230
+dim(trainX)
+trainY=t(target)
+length(trainY) #230
+
+###Get potential predictor variables
+newpredictor_traindata=t(trainpredictor_data)
+
+###Take the un-logged not filtered data to see the effect of the filter
+unloggedTrainX=2^trainX
+gene.mean<-apply(unloggedTrainX,1,mean)
+gene.sd<-apply(unloggedTrainX,1,sd)
+gene.cv<-gene.sd/gene.mean
+
+par(mfrow=c(1,2))
+plot.new()
+par(mar=c(1,1,1,1))
+plot(gene.mean,gene.sd,log='xy',pch=16,cex=0.1,main="Look at Mean of Genes")
+abline(v=100,lwd=3,col='red')
+dev.off()
+hist(log2(gene.cv),main="Look at CV")
+abline(v=log(.7),lwd=3,col='red')
+
+###Just to see how the unloged filtered data #SHOULD BE THE SAME SINCE FILTERATION WAS RAN IN TRAINDATAANALYSISJAN19.R
+filt_TrainDataunloged=2^trainpredictor_data
+genefiltered.mean1<-apply(filt_TrainDataunloged,1,mean)
+genefiltered.sd1<-apply(filt_TrainDataunloged,1,sd)
+genefiltered.cv1 <-genefiltered.sd1/genefiltered.mean1
+
+dev.off()
+plot(genefiltered.mean1,genefiltered.sd1,log='xy',pch=16,cex=0.1,main="After Filtering Gene expression>100")
+hist(log2(genefiltered.cv1),main="After Filtering CV 0.7-10")
+
+###Multidimensional scaling plot of distances between gene expression profiles
+BiocManager::install(version = "3.9")
+BiocManager::install("limma")
+library(limma)
+
+table(trainY)
+
+###Creating a combined dataset with both training and Testing data sets
+# newpredictor_trainTestcombined=rbind(newpredictor_traindata,newpredictor_testdata)
+# newpredictor_trainTestcombined_SAMAnalysis=cbind(as.data.frame.array(t(trainpredictor_IDs)),newpredictor_trainTestcombined)
+###Log 2fold Calculation
+
+# targetAll<-as.factor(c(trainY,testY))
+# newpredictor_trainTestcombinedAll=cbind(newpredictor_trainTestcombined,targetAll)
+# colnames(newpredictor_trainTestcombinedAll)=c(colnames(newpredictor_traindata),"target")
+
+#################Significance Analysis of MicroArrays#################
+# if (!requireNamespace("BiocManager", quietly = TRUE))
+#   install.packages("BiocManager")
+# 
+# BiocManager::install("impute")
+# install.packages("samr")
+# library(samr)  #
+# library(DT)
+library(limma)
+# # source('http://bioconductor.org/biocLite.R') # Import biocLite() function into R environment biocLite('limma')
+# 
+# SAMTwoClass_data<- list(x =t(newpredictor_trainTestcombined), y = t(targetAll), geneid = geneID, genenames = genenames, logged2 = TRUE)
+# samr.obj<- samr(SAMTwoClass_data, resp.type = "Two class unpaired",assay.type="array", nperms=100,center.arrays=TRUE)
+# names(samr.obj)
+# delta.table <- samr.compute.delta.table(samr.obj, min.foldchange = 2)  # Compute thresholds for different deltas
+# delta.table
+# del<- 0.006
+# siggenes.table<- samr.compute.siggenes.table(samr.obj,del,SAMTwoClass_data,delta.table,min.foldchange=2)
+# siggenes.table
+# samr.plot(samr.obj, del, min.foldchange=2, )
+# pv=samr.pvalues.from.perms(samr.obj$tt,samr.obj$ttstar)
+# pv
+# write.table(siggenes.table$genes.up,file="BREASTupJAN19.txt")
+# write.table(siggenes.table$genes.lo,file="BREASTlowJAN19.txt")
+
+# ##Correlation Analysis 
+# install.packages("gplots")
+# library(gplots)
+# install.packages("RColorBrewer")
+# library(RColorBrewer)
+# 
+# hmcol <- colorRampPalette(brewer.pal(10,"PuOr"))(342)
+# corrs <- cor(t(newpredictor_trainTestcombined), method = "spearman")
+# new.plot()
+# dev.off()
+# heatmap.2(corrs, margins = c(6, 11),col = hmcol, trace = "none", main="Correlation Analysis",keysize = 1,Rowv=FALSE,Colv=FALSE,dendrogram='none', 
+#           srtCol = 56)
+# ###Pricipal Component Analysis
+# prcomps<- prcomp(t(newpredictor_trainTestcombined))
+# summary(prcomps)
+# plot(prcomps$rotation, type = "n",main="Principal Components")
+# text(prcomps$rotation, rownames(prcomps$rotation))
+# 
+# install.packages("rgl")
+# library(rgl)
+# plot3d(prcomps$rotation[,1:3],col=levels(targetAll))
+
+##Do the file creation .phe,.ann. and .exp file creations based on the GXNA tool 
+##Save the files at C:\Users\18134\Desktop\gxna
+##load the mm vector from the R file called "HIVDataGXNAInputFilesR.R" saved at C:\Users\18134\Desktop\gxna
+
+##Finally we run the RF algorithm. NOTE: we use an ODD number for ntree. This is because when the forest/ensembl is used on test data, ties are broken randomly. 
+##Having an odd number of trees avoids this issue and makes the model fully deterministic. 
+##Also note, we will use down-sampling to attempt to compensate for unequal class-sizes (less ##relapses than non-relapses).
+
+#Setting up inputs for random forest function
+#tmp holds values of relapse status, 144 No Relapse 86 Relapse
+traintmp = as.vector(table(trainY)) #dimensions 144 x 86
+#number of classes (NoRelapse and Relapse) is 2
+trainnum_classes = length(traintmp)
+#sets Relapse class as minimum size of class (86)
+trainmin_size = traintmp[order(traintmp,decreasing=FALSE)[1]]
+#replicates the values of x vector (min_size) into an object same type as x (num_classes)
+trainsampsizes = rep(trainmin_size,trainnum_classes) #rep(86,2)
+
+# tmp = as.vector(table(trainY))
+# num_classes = length(tmp)
+# min_size = tmp[order(tmp,decreasing=FALSE)[1]]
+# sampsizes = rep(min_size,num_classes)
+set.seed(86)
+trainRF_output=randomForest(x=trainpredictor_data, y=trainY, importance = TRUE, ntree = 10001, proximity = TRUE, sampsize=trainsampsizes, na.action = na.omit, mtry=15)
+trainRF_output
+
+save(trainRF_output, file="RF_model")
+load("RF_model")
+
+trainconfusion=trainRF_output$trainconfusion #takes values from trainconfusion matrix in rf_output; same as output
+trainconfusion
+
+#divides Relapse*Relapse by (Relapse*Relapse + Relapse*NoRelapse) and multiplies by 100 to get percentage
+trainsensitivity=(trainconfusion[2,2]/(trainconfusion[2,2]+trainconfusion[2,1]))*100
+trainsensitivity #52.32558
+
+#divides NoRelapse*NoRelapse by (NoRelapse*NoRelapse + NoRelapse*Relapse) and multiplies by 100 to get percentage
+trainspecificity=(trainconfusion[1,1]/(trainconfusion[1,1]+trainconfusion[1,2]))*100
+trainspecificity #79.16667
+
+#OOB: 30.86957
+trainoverall_error=trainRF_output$err.rate[length(trainRF_output$err.rate[,1]),1]*100
+trainoverall_error
+trainoverall_accuracy=100-trainoverall_error 
+trainoverall_accuracy
+trainclass1_error=paste(rownames(trainconfusion)[1]," error rate= ",trainconfusion[1,3], sep="")
+trainclass1_error
+trainclass2_error=paste(rownames(trainconfusion)[2]," error rate= ",trainconfusion[2,3], sep="")
+trainclass2_error
+
+trainsens_out=paste("trainsensitivity=",trainsensitivity, sep="")
+trainspec_out=paste("trainspecificity=",trainspecificity, sep="")
+trainerr_out=paste("overall error rate=",trainoverall_error,sep="")
+trainacc_out=paste("overall accuracy=",trainoverall_accuracy,sep="")
+trainmisclass_1=paste(trainconfusion[1,2], rownames(trainconfusion)[1],"misclassified as", colnames(trainconfusion)[2], sep=" ")
+trainmisclass_1 #"30 NoRelapse misclassified as Relapse"
+trainmisclass_2=paste(trainconfusion[2,1], rownames(trainconfusion)[2],"misclassified as", colnames(trainconfusion)[1], sep=" ")
+trainmisclass_2 #"41 Relapse misclassified as NoRelapse"
+trainconfusion_out=trainconfusion[1:2,1:2]
+trainconfusion_out=cbind(rownames(trainconfusion_out), trainconfusion_out)
+trainconfusion_out
+
+write.table(trainrf_importances[,4],file="outfile", sep="\t", quote=FALSE, col.names=FALSE)
+write("train trainconfusion table", file="outfile", append=TRUE)
+write.table(trainconfusion_out,file="outfile", sep="\t", quote=FALSE, col.names=TRUE, row.names=FALSE, append=TRUE)
+write(c(trainsens_out,trainspec_out,trainacc_out,trainerr_out,trainclass1_error,trainclass2_error,misclass_1,misclass_2), file="outfile", append=TRUE)
+
+pdf(file=varimp_pdffile)
+varImpPlot(trainRF_output, type=2, n.var=30, scale=FALSE, main="Variable Importance (Gini) for top 30 predictors")
+
+pdf(file=MDS_pdffile)
+target_labels=as.vector(target)
+target_labels[target_labels=="NoRelapse"]="N"
+target_labels[target_labels=="Relapse"]="R"
+MDSplot(trainRF_output, target, k=2, xlab="", ylab="", pch=target_labels, palette=c("red", "blue"), main="MDS plot")
+
+install.packages("ROCR")
+install.packages("Hmisc")
+library(ROCR)
+library(Hmisc)
+
+trainpredictions=as.vector(trainRF_output$votes[,2])
+trainpred=prediction(trainpredictions,trainY)
+#First calculate the AUC value
+trainperf_AUC=performance(trainpred,"auc")
+trainAUC=trainperf_AUC@y.values[[1]]
+#Then, plot the actual ROC curve
+trainperf_ROC=performance(trainpred,"tpr","fpr")
+pdf(file=ROC_pdffile)
+plot(trainperf_ROC, main="ROC plot")
+text(0.5,0.5,paste("AUC = ",format(trainAUC, digits=5, scientific=FALSE)))
+#AUC=0.70284 try to get as close to 1 as possible
+
+options(digits=2)
+pdf(file=vote_dist_pdffile)
+out <- histbackback(split(trainRF_output$votes[,"Relapse"], trainY), probability=FALSE, xlim=c(-50,50), main = 'Vote distributions for patients classified by RF', axes=TRUE, ylab="Fraction votes (Relapse)")
+barplot(-out$left, col="red" , horiz=TRUE, space=0, add=TRUE, axes=FALSE)
+barplot(out$right, col="blue", horiz=TRUE, space=0, add=TRUE, axes=FALSE)
+
+case_predictions=cbind(clindata,trainY,trainRF_output$predicted,trainRF_output$votes) #remember to insert trainclindata file
+write.table(case_predictions,file=case_pred_outfile, sep="\t", quote=FALSE, col.names=TRUE, row.names=FALSE)
+
+##################################################################
+##Analyzing Differentially Expressed Genes with Moderated t-test##
+##################################################################
+limma::plotMA
+
+design1 <- model.matrix(~0+target)
+colnames(design1)<-c("NoRelapse", "Relapse")
+array<-arrayWeights(t(newpredictor_traindata),design=design1)
+fit1 <- lmFit(t(newpredictor_traindata))
+dim(design1) #dim 230 by 2
+dim(fit1) #dim 230 by 2 #SHOULD BE NUMBER OF GENES
+contrast.matrix<-makeContrasts(Relapse-NoRelapse,levels=design1)
+contrast.matrix
+
+# fit1_2<-contrasts.fit(fit1,contrast.matrix)
+
+# fit1_2<- eBayes(fit1_2)
+# T1<-topTable(fit1_2,coef=1,adjust="BH",n="Inf") # A list of top genes differential expressed in Relapse vs NoRelapse
+# write.table(T1,"T1.txt")
+
+##Don't use the follwing lfc cut off as it is not recomended
+#https://www.researchgate.net/post/Cut-off_values_for_gene_expression_fold_change_when_performing_RNA_seq10
+#results_FC = decideTests(fit1_2, adj.P.Val=0.05, lfc=1.1)
+
+##Instead we have used this in model after revision
+# results = decideTests(fit1_2, adj.P.Val=0.01)
+# tail(results)
+# write.table(results,"eBayes.txt")
+# ##Venn Diagram Creation for Up and Down Genes
+# vennDiagram(results,main="Genes",include=c("up", "down"),
+#             counts.col=c("red", "blue"),
+#             circle.col = c("red", "blue"))
+# 
+# volcanoplot(fit1_2)
+# 
+# #results = decideTests(fit2_2, adj.P.Val=0.05)
+# #vennDiagram(results)
+# 
+# plotMD(fit1_2,coef=3,status =results1[,3],values=c(-1,1),hl.col=c("red","blue"))
+
+
+save.image("/Users/myrinearevalo/Desktop/MachineLearn/BREAST/TRAINwithoutclusterMARCH2020.RData")
+
